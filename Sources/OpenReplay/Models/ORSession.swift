@@ -17,7 +17,6 @@ class ORSessionRequest: NSObject {
                 "physicalMemory": UInt64(ProcessInfo.processInfo.physicalMemory),
                 "processorCount": UInt64(ProcessInfo.processInfo.processorCount),
                 "activeProcessorCount": UInt64(ProcessInfo.processInfo.activeProcessorCount),
-                "systemUptime": UInt64(ProcessInfo.processInfo.systemUptime),
                 "isLowPowerModeEnabled": UInt64(ProcessInfo.processInfo.isLowPowerModeEnabled ? 1 : 0),
                 "thermalState": UInt64(ProcessInfo.processInfo.thermalState.rawValue),
                 "batteryLevel": UInt64(max(0.0, UIDevice.current.batteryLevel)*100),
