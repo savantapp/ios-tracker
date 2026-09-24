@@ -66,6 +66,7 @@ class ORSessionRequest: NSObject {
                 // backend (and the battery) forever when the server is down.
                 let delay = min(60.0, 5.0 * pow(2.0, Double(attempt)))
                 DispatchQueue.global().asyncAfter(deadline: .now() + delay) {
+                    guard Openreplay.shared.isWanted else { return }
                     callAPI(attempt: attempt + 1, completion: completion)
                 }
                 return

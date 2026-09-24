@@ -18,6 +18,9 @@ open class Openreplay: NSObject {
     public var bufferingMode = false
     private var pathMonitor: NWPathMonitor?
     private var sessionStartRequested = false
+    // Cleared by stop(); late /start replies, queued path updates and 401 restarts must not resume recording.
+    private(set) var isWanted = false
+    private var lastUserID: String?
     // Flipped by the path monitor when wifiOnly is set and the device is on
     // cellular — uploads pause (batches stay queued) until WiFi returns.
     var uploadsAllowed = true
@@ -30,6 +33,7 @@ open class Openreplay: NSObject {
     @objc open func start(projectKey: String, options: OROptions) {
         self.options = options
         self.projectKey = projectKey
+        self.isWanted = true
         self.sessionStartRequested = false
         self.pathMonitor?.cancel()
         self.pathMonitor = NWPathMonitor()
@@ -42,6 +46,7 @@ open class Openreplay: NSObject {
             guard let self = self else { return }
 
             DispatchQueue.main.async {
+                guard self.isWanted else { return }
                 if path.usesInterfaceType(.wifi) || path.usesInterfaceType(.wiredEthernet) {
                     if PerformanceListener.shared.isActive {
                         PerformanceListener.shared.networkStateChange(1)
@@ -100,12 +105,14 @@ open class Openreplay: NSObject {
         self.projectKey = projectKey
         ORSessionRequest.create(doNotRecord: false) { sessionResponse in
             guard let sessionResponse = sessionResponse else { return print("Openreplay: no response from /start request") }
+            guard self.isWanted else { return }
             self.sessionStartTs = UInt64(Date().timeIntervalSince1970 * 1000)
             self.sessionData = sessionResponse
             let captureSettings = getCaptureSettings(fps: sessionResponse.fps, quality: sessionResponse.quality)
             ScreenshotManager.shared.setSettings(settings: captureSettings)
             
             MessageCollector.shared.start()
+            if let userID = self.lastUserID { self.setUserID(userID) }
             self.startListeners(options: options)
 
             if options.screen {
@@ -151,6 +158,8 @@ open class Openreplay: NSObject {
     }
     
     @objc open func stop() {
+        isWanted = false
+        lastUserID = nil
         pathMonitor?.cancel()
         pathMonitor = nil
         sessionStartRequested = false
@@ -201,6 +210,7 @@ open class Openreplay: NSObject {
     }
 
     @objc open func setUserID(_ userID: String) {
+        lastUserID = userID
         let message = ORMobileUserID(iD: userID)
         MessageCollector.shared.sendMessage(message)
     }
@@ -258,6 +268,10 @@ open class Openreplay: NSObject {
     }
     
     @objc open func useTouchSwizzle() {
+        UIWindow.useOpenReplayTouchCapture()
+    }
+
+    @objc open func enableTouchCapture() {
         UIWindow.useOpenReplayTouchCapture()
     }
 }

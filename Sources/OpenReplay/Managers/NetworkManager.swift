@@ -79,7 +79,7 @@ class NetworkManager: NSObject {
 
                     if statusCode == 401 {
                         self.token = nil
-                        if !self.isRestartingSession {
+                        if !self.isRestartingSession && Openreplay.shared.isWanted {
                             self.isRestartingSession = true
                             Openreplay.shared.startSession(projectKey: Openreplay.shared.projectKey ?? "", options: Openreplay.shared.options)
                         }
