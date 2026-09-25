@@ -312,7 +312,7 @@ open class ScreenshotManager {
         // An empty batch leaves lastTs unchanged, so it would reuse the previous
         // archive name and overwrite that upload server-side.
         guard !images.isEmpty else {
-            completion?()
+            messagesQueue.addOperation { completion?() }
             return
         }
 

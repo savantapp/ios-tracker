@@ -383,6 +383,19 @@ final class ResignActiveFlushTests: XCTestCase {
         XCTAssertTrue(manager.screenshots.isEmpty)
     }
 
+    // pauseOperations starts the collector drain in pause's completion, so it must not fire before the resign batch is packed.
+    func testPauseAfterResignCompletesOnlyAfterTheResignBatchIsPacked() {
+        manager.lastTs = 1
+        let noise = Data((0..<100_000).map { _ in UInt8.random(in: 0...255) })
+        manager.screenshots = [(noise, 100), (noise, 101)]
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        var lastTsAtCompletion: UInt64 = 0
+        let done = expectation(description: "pause completion")
+        manager.pause { lastTsAtCompletion = self.manager.lastTs; done.fulfill() }
+        wait(for: [done], timeout: 30)
+        XCTAssertEqual(lastTsAtCompletion, 101)
+    }
+
     func testResignActiveHoldsFramesInBufferingMode() {
         Openreplay.shared.bufferingMode = true
         defer { Openreplay.shared.bufferingMode = false }
