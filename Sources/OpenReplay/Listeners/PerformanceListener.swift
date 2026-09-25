@@ -41,7 +41,14 @@ open class PerformanceListener: NSObject {
             lifecycleObserversRegistered = true
             NotificationCenter.default.addObserver(self, selector: #selector(pause), name: UIApplication.didEnterBackgroundNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(resume), name: UIApplication.willEnterForegroundNotification, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(resignActive), name: UIApplication.willResignActiveNotification, object: nil)
         }
+    }
+
+    // A swipe-kill or crash after resign never reaches didEnterBackground, so frames short of a full batch die with the process.
+    @objc func resignActive() {
+        guard Openreplay.shared.options.screen, !Openreplay.shared.bufferingMode else { return }
+        ScreenshotManager.shared.sendScreenshots()
     }
 
     @objc func resume() {
@@ -155,6 +162,7 @@ open class PerformanceListener: NSObject {
         if disableLifecycle && lifecycleObserversRegistered {
             NotificationCenter.default.removeObserver(self, name: UIApplication.didEnterBackgroundNotification, object: nil)
             NotificationCenter.default.removeObserver(self, name: UIApplication.willEnterForegroundNotification, object: nil)
+            NotificationCenter.default.removeObserver(self, name: UIApplication.willResignActiveNotification, object: nil)
             lifecycleObserversRegistered = false
         }
     }
