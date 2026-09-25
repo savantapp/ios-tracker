@@ -36,7 +36,7 @@ open class ScreenshotManager {
     // Weak registry: a strong array would keep sanitized views alive after their
     // screens are dismissed (leak) and scan dead entries forever.
     private let sanitizedElements = NSHashTable<AnyObject>.weakObjects()
-    private var screenshots: [(Data, UInt64)] = []
+    var screenshots: [(Data, UInt64)] = []
     private var screenshotsBackup: [(Data, UInt64)] = []
     private var tick: UInt64 = 0
     private var bufferTimer: Timer?
@@ -307,9 +307,6 @@ open class ScreenshotManager {
         stateLock.lock()
         let images = screenshots
         screenshots.removeAll()
-        let firstTsSnapshot = self.firstTs
-        let lastTsSnapshot = self.lastTs
-        let framesFormat = self.useFramesFormat
         stateLock.unlock()
 
         // An empty batch leaves lastTs unchanged, so it would reuse the previous
@@ -327,6 +324,12 @@ open class ScreenshotManager {
                 DebugUtils.log("Dropping screenshot batch due to backlog")
                 return
             }
+            // Read on the serial queue: two flushes enqueued before the first packs would otherwise share one archive name.
+            self.stateLock.lock()
+            let firstTsSnapshot = self.firstTs
+            let lastTsSnapshot = self.lastTs
+            let framesFormat = self.useFramesFormat
+            self.stateLock.unlock()
             if framesFormat {
                 archiveName = "\(sessionId)-\(lastTsSnapshot).gz"
                 // New binary format: [uint64 LE timestamp][uint32 LE size][data]...

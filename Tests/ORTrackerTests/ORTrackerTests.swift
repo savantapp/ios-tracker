@@ -342,6 +342,56 @@ final class ScreenshotArchiveNamingTests: XCTestCase {
     }
 }
 
+final class ResignActiveFlushTests: XCTestCase {
+    private let manager = ScreenshotManager.shared
+    private var saved: (sessionId: String?, projectKey: String?, lastTs: UInt64, options: OROptions)!
+
+    override func setUp() {
+        super.setUp()
+        saved = (NetworkManager.shared.sessionId, Openreplay.shared.projectKey, manager.lastTs, Openreplay.shared.options)
+        NetworkManager.shared.sessionId = "resign-test"
+        Openreplay.shared.projectKey = nil
+        Openreplay.shared.options = OROptions()
+        PerformanceListener.shared.start()
+    }
+
+    override func tearDown() {
+        PerformanceListener.shared.stop(disableLifecycle: true)
+        manager.stop()
+        NetworkManager.shared.sessionId = saved.sessionId
+        Openreplay.shared.projectKey = saved.projectKey
+        Openreplay.shared.options = saved.options
+        manager.lastTs = saved.lastTs
+        super.tearDown()
+    }
+
+    private func waitForLastTs(_ ts: UInt64) {
+        let packed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.manager.lastTs == ts }, object: nil)
+        wait(for: [packed], timeout: 5)
+    }
+
+    func testResignActivePacksTheBufferAndBackgroundSendsOnlyLaterFrames() {
+        manager.lastTs = 1
+        manager.screenshots = [(Data([1]), 100), (Data([2]), 200)]
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        XCTAssertTrue(manager.screenshots.isEmpty)
+        waitForLastTs(200)
+
+        manager.screenshots = [(Data([3]), 300)]
+        manager.pause()
+        waitForLastTs(300)
+        XCTAssertTrue(manager.screenshots.isEmpty)
+    }
+
+    func testResignActiveHoldsFramesInBufferingMode() {
+        Openreplay.shared.bufferingMode = true
+        defer { Openreplay.shared.bufferingMode = false }
+        manager.screenshots = [(Data([1]), 100)]
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        XCTAssertEqual(manager.screenshots.count, 1)
+    }
+}
+
 final class LogsListenerLifecycleTests: XCTestCase {
     /// Regression guard for the fd lifetime: the read ends are closed by each
     /// source's cancel handler, so a start/stop cycle must not double-close (which
